@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Your Name in Stars</title>
+  <style>
+    :root {
+      --bg: radial-gradient(1200px 800px at 50% 60%, #0a1030 0%, #05081a 60%, #02040d 100%);
+      --accent-blue: #7cc7ff;
+      --accent-pink: #ff9ed9;
+      --message-color: #ffb6e5;
+    }
+    html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: sans-serif; }
+    .wrap { position: relative; width: 100%; height: 100%; background: var(--bg); }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    .hud { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); color: #a7b4d6; font-size: 12px; letter-spacing: 0.06em; opacity: 0.7; text-align: center; padding: 6px 10px; border-radius: 999px; background: rgba(10, 16, 32, 0.4); backdrop-filter: blur(3px); }
+    .message { position: absolute; left: 50%; top: 12%; transform: translateX(-50%); color: var(--message-color); font-size: clamp(16px, 3.5vw, 32px); letter-spacing: 0.08em; text-shadow: 0 0 12px rgba(255, 158, 217, 0.6), 0 0 20px rgba(124, 199, 255, 0.4); opacity: 0; transition: opacity 900ms ease; white-space: nowrap; }
+    .message.show { opacity: 1; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <canvas id="sky"></canvas>
+    <div class="message" id="msg"></div>
+    <div class="hud">Move your mouse to make stars glow • Click / tap for a shooting star</div>
+  </div>
+  <script>
+    const CONFIG = {
+      nameText: "SAKSHI",
+      secretMessage: "You are my brightest star ✨",
+      favoriteColors: ["#7cc7ff", "#ff9ed9"],
+      density: 0.13,
+    };
+
+    const canvas = document.getElementById('sky');
+    const ctx = canvas.getContext('2d');
+    const msgEl = document.getElementById('msg');
+    let stars = [], shootingStar = null, w, h;
+
+    function resize() {
+      w = canvas.width = window.innerWidth;
+      h = canvas.height = window.innerHeight;
+      createStars();
+      createNameConstellation();
+    }
+    window.addEventListener('resize', resize);
+
+    function createStars() {
+      stars = [];
+      const count = Math.floor(w * h * CONFIG.density / 1000);
+      for (let i = 0; i < count; i++) {
+        stars.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          r: Math.random() * 1.5 + 0.5,
+          color: CONFIG.favoriteColors[Math.floor(Math.random() * CONFIG.favoriteColors.length)],
+          twinkle: Math.random()
+        });
+      }
+    }
+
+    let constellationStars = [];
+    function createNameConstellation() {
+      constellationStars = [];
+      ctx.font = `bold ${Math.min(w, h) / 5}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const textCanvas = document.createElement('canvas');
+      textCanvas.width = w;
+      textCanvas.height = h;
+      const tctx = textCanvas.getContext('2d');
+      tctx.font = ctx.font;
+      tctx.fillStyle = 'white';
+      tctx.textAlign = 'center';
+      tctx.textBaseline = 'middle';
+      tctx.fillText(CONFIG.nameText, w / 2, h / 2);
+
+      const imgData = tctx.getImageData(0, 0, w, h);
+      for (let y = 0; y < h; y += 8) {
+        for (let x = 0; x < w; x += 8) {
+          const idx = (y * w + x) * 4;
+          if (imgData.data[idx + 3] > 128) {
+            constellationStars.push({ x, y, r: Math.random() * 1.2 + 0.8, shimmerPhase: Math.random() * Math.PI * 2 });
+          }
+        }
+      }
+    }
+
+    function drawStars() {
+      ctx.clearRect(0, 0, w, h);
+      for (let s of stars) {
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fillStyle = s.color;
+        ctx.globalAlpha = 0.5 + Math.sin(Date.now() / 500 + s.twinkle) * 0.3;
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = s.color;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+
+      ctx.globalAlpha = 1;
+      for (let cs of constellationStars) {
+        const shimmer = (Math.sin(Date.now() / 800 + cs.shimmerPhase) + 1) / 2;
+        const color = CONFIG.favoriteColors[Math.floor(shimmer * CONFIG.favoriteColors.length)];
+        ctx.beginPath();
+        ctx.arc(cs.x, cs.y, cs.r + shimmer * 0.6, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.shadowBlur = 12 + shimmer * 8;
+        ctx.shadowColor = color;
+        ctx.fill();
+      }
+
+      if (shootingStar) {
+        const grad = ctx.createLinearGradient(shootingStar.x, shootingStar.y, shootingStar.x - shootingStar.len, shootingStar.y + shootingStar.len / 3);
+        grad.addColorStop(0, CONFIG.favoriteColors[1]);
+        grad.addColorStop(1, CONFIG.favoriteColors[0]);
+        ctx.beginPath();
+        ctx.moveTo(shootingStar.x, shootingStar.y);
+        ctx.lineTo(shootingStar.x - shootingStar.len, shootingStar.y + shootingStar.len / 3);
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = 2.5;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = CONFIG.favoriteColors[1];
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        shootingStar.x += shootingStar.vx;
+        shootingStar.y += shootingStar.vy;
+        shootingStar.len *= 0.98;
+
+        if (shootingStar.len < 1) shootingStar = null;
+      }
+    }
+
+    function animate() {
+      drawStars();
+      requestAnimationFrame(animate);
+    }
+
+    function launchShootingStar() {
+      shootingStar = { x: Math.random() * w, y: 0, len: 150, vx: -6, vy: 3 };
+      msgEl.textContent = CONFIG.secretMessage;
+      msgEl.classList.add('show');
+      setTimeout(() => msgEl.classList.remove('show'), 2500);
+    }
+
+    canvas.addEventListener('click', launchShootingStar);
+
+    resize();
+    animate();
+  </script>
+</body>
+</html>
